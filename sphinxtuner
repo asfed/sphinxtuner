@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# sphinxtuner - Performance analyzer for SphinxSearch
+
+# Check if mysql client is installed
+if ! command -v mysql &> /dev/null; then
+    echo "Error: 'mysql' command not found. Please ensure it is installed."
+    exit 1
+fi
+
+# Function to run SphinxQL queries
+run_sphinxql() {
+    mysql -h 127.0.0.1 -P 9306 -Ns -e "$1" 2>/dev/null
+}
+
+# Function to get values from sphinx.conf
+get_config_value() {
+    grep -E "^$1\s*=" /etc/sphinxsearch/sphinx.conf | head -n 1 | awk -F '=' '{print $2}' | xargs
+}
+
+# Get Sphinx status
+status=$(run_sphinxql "SHOW STATUS")
+if [ -z "$status" ]; then
+    echo "Error: Failed to retrieve Sphinx status. Ensure Sphinx is running and accessible on localhost:9306."
+    exit 1
+fi
+
+# Parse status data
+uptime=$(echo "$status" | grep '^uptime' | awk '{print $2}')
+queries=$(echo "$status" | grep '^queries' | awk '{print $2}')
+avg_query_wall=$(echo "$status" | grep '^avg_query_wall' | awk '{print $2}')
+local_ram_mb=$(echo "$status" | grep '^local_ram_mb' | awk '{print $2}')
+local_disk_mb=$(echo "$status" | grep '^local_disk_mb' | awk '{print $2}')
+connections=$(echo "$status" | grep '^connections' | awk '{print $2}')
+
+# Get configuration parameters
+mem_limit=$(get_config_value "mem_limit")
+indexer_threads=$(get_config_value "threads")
+
+# Get system information
+total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+total_ram_mb=$((total_ram_kb / 1024))
+
+# Get additional SphinxQL data
+create_table=$(run_sphinxql "SHOW CREATE TABLE your_index")
+agent_status=$(run_sphinxql "SHOW INDEX AGENT STATUS")
+index_from=$(run_sphinxql "SHOW INDEX FROM your_index")
+optimize_status=$(run_sphinxql "SHOW OPTIMIZE STATUS")
+profile=$(run_sphinxql "SHOW PROFILE")
+threads=$(run_sphinxql "SHOW THREADS")
+variables=$(run_sphinxql "SHOW VARIABLES")
+
+# Output report
+echo "SphinxTuner v1.0"
+echo "-------------------------"
+echo "System Information:"
+echo "Total RAM: ${total_ram_mb} MB"
+echo "Sphinx Uptime: $(($uptime / 3600)) hours $(($uptime % 3600 / 60)) minutes"
+echo "Connections: $connections"
+echo "Queries Executed: $queries"
+echo "Average Query Time: ${avg_query_wall} seconds"
+echo "RAM Used by Sphinx: ${local_ram_mb} MB"
+echo "Index Size on Disk: ${local_disk_mb} MB"
+
+# Additional SphinxQL data
+echo ""
+echo "Additional SphinxQL Data:"
+echo "CREATE TABLE Definition:"
+echo "$create_table"
+echo "AGENT STATUS:"
+echo "$agent_status"
+echo "INDEX FROM your_index:"
+echo "$index_from"
+echo "OPTIMIZE STATUS:"
+echo "$optimize_status"
+echo "PROFILE:"
+echo "$profile"
+echo "THREADS:"
+echo "$threads"
+echo "VARIABLES:"
+echo "$variables"
+
+# Analysis and recommendations
+echo ""
+echo "Performance Analysis:"
+if (( $(echo "$avg_query_wall > 0.01" | bc -l) )); then
+    echo "Warning: Average query time is high ($avg_query_wall sec). Consider increasing mem_limit or optimizing queries."
+fi
+
+if [ -z "$mem_limit" ] || (( $(echo "$mem_limit < $local_disk_mb" | bc -l) )); then
+    echo "Warning: mem_limit in configuration is too low ($mem_limit MB). It is recommended to set it to at least ${local_disk_mb} MB."
+fi
+
+if [ -z "$indexer_threads" ] || (( indexer_threads < 4 )); then
+    echo "Warning: Number of indexer threads (threads) is too low ($indexer_threads). It is recommended to increase it to the number of CPU cores."
+fi
+
+if (( local_ram_mb > total_ram_mb * 0.8 )); then
+    echo "Warning: Sphinx is using more than 80% of available RAM (${local_ram_mb} MB of ${total_ram_mb} MB). Consider upgrading physical memory."
+fi
+
+# Optimization recommendations
+echo ""
+echo "Optimization Recommendations:"
+echo "- Increase mem_limit to a value greater than the disk index size (${local_disk_mb} MB)."
+echo "- Use RT indexes for fast data updates if possible."
+echo "- Enable external caching with Redis or Memcached for frequently executed queries."
+echo "- Review and optimize your queries by analyzing the query logs (query.log)."
+echo "- Adjust max_iops and max_iosize settings in sphinx.conf for better I/O performance."
+echo "- Analyze SHOW PROFILE output to identify slow parts of queries."
+echo "- Review SHOW VARIABLES output to ensure optimal configuration."
+
+# Conclusion
+echo ""
+echo "Analysis completed. Use the recommendations above to improve Sphinx performance."
