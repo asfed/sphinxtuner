@@ -105,7 +105,6 @@ The following Sphinx configuration parameters are analyzed and optimized:
 | `query_cache_size`| Enables query caching for frequently executed queries.                     |
 
 For more details, refer to the [Sphinx 3.x Documentation](https://sphinxsearch.com/docs/sphinx3.html).
-```
 
 ---
 
