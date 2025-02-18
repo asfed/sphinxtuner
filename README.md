@@ -27,7 +27,7 @@ SphinxTuner is a performance analysis tool for [SphinxSearch](https://sphinxsear
    ```
 2. **Download SphinxTuner**:
    ```bash
-   wget https://raw.githubusercontent.com/your-repo/sphinxtuner/main/sphinxtuner
+   wget https://raw.githubusercontent.com/asfed/sphinxtuner/main/sphinxtuner
    chmod +x sphinxtuner
    ```
 3. **Run the Script**:
