@@ -37,11 +37,6 @@ SphinxTuner is a performance analysis tool for [SphinxSearch](https://sphinxsear
 
 ---
 
-### Usage
-
-```markdown
----
-
 ## Usage
 
 ### Example Output
@@ -91,11 +86,6 @@ Optimization Recommendations:
 Analysis completed. Use the recommendations above to improve Sphinx performance.
 ```
 
----
-
-### Key Parameters Analyzed
-
-```markdown
 ---
 
 ## Key Parameters Analyzed
