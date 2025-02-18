@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# sphinxtuner - Performance analyzer for SphinxSearch
+# sphinxtuner - Comprehensive performance analyzer for SphinxSearch
 
 # Check if mysql client is installed
 if ! command -v mysql &> /dev/null; then
@@ -36,19 +36,19 @@ connections=$(echo "$status" | grep '^connections' | awk '{print $2}')
 # Get configuration parameters
 mem_limit=$(get_config_value "mem_limit")
 indexer_threads=$(get_config_value "threads")
+workers=$(get_config_value "workers")
+net_workers=$(get_config_value "net_workers")
+max_matches=$(get_config_value "max_matches")
+read_timeout=$(get_config_value "read_timeout")
+write_timeout=$(get_config_value "write_timeout")
+max_iops=$(get_config_value "max_iops")
+max_iosize=$(get_config_value "max_iosize")
+query_log_format=$(get_config_value "query_log_format")
+query_cache_size=$(get_config_value "query_cache_size")
 
 # Get system information
 total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 total_ram_mb=$((total_ram_kb / 1024))
-
-# Get additional SphinxQL data
-create_table=$(run_sphinxql "SHOW CREATE TABLE your_index")
-agent_status=$(run_sphinxql "SHOW INDEX AGENT STATUS")
-index_from=$(run_sphinxql "SHOW INDEX FROM your_index")
-optimize_status=$(run_sphinxql "SHOW OPTIMIZE STATUS")
-profile=$(run_sphinxql "SHOW PROFILE")
-threads=$(run_sphinxql "SHOW THREADS")
-variables=$(run_sphinxql "SHOW VARIABLES")
 
 # Output report
 echo "SphinxTuner v1.0"
@@ -62,23 +62,20 @@ echo "Average Query Time: ${avg_query_wall} seconds"
 echo "RAM Used by Sphinx: ${local_ram_mb} MB"
 echo "Index Size on Disk: ${local_disk_mb} MB"
 
-# Additional SphinxQL data
+# Configuration details
 echo ""
-echo "Additional SphinxQL Data:"
-echo "CREATE TABLE Definition:"
-echo "$create_table"
-echo "AGENT STATUS:"
-echo "$agent_status"
-echo "INDEX FROM your_index:"
-echo "$index_from"
-echo "OPTIMIZE STATUS:"
-echo "$optimize_status"
-echo "PROFILE:"
-echo "$profile"
-echo "THREADS:"
-echo "$threads"
-echo "VARIABLES:"
-echo "$variables"
+echo "Configuration Details:"
+echo "mem_limit: ${mem_limit:-Not set}"
+echo "indexer threads: ${indexer_threads:-Not set}"
+echo "workers: ${workers:-Not set}"
+echo "net_workers: ${net_workers:-Not set}"
+echo "max_matches: ${max_matches:-Not set}"
+echo "read_timeout: ${read_timeout:-Not set}"
+echo "write_timeout: ${write_timeout:-Not set}"
+echo "max_iops: ${max_iops:-Not set}"
+echo "max_iosize: ${max_iosize:-Not set}"
+echo "query_log_format: ${query_log_format:-Not set}"
+echo "query_cache_size: ${query_cache_size:-Not set}"
 
 # Analysis and recommendations
 echo ""
@@ -95,6 +92,42 @@ if [ -z "$indexer_threads" ] || (( indexer_threads < 4 )); then
     echo "Warning: Number of indexer threads (threads) is too low ($indexer_threads). It is recommended to increase it to the number of CPU cores."
 fi
 
+if [ -z "$workers" ]; then
+    echo "Warning: workers parameter is not set. Consider setting it to 'threads' for better performance with multiple cores."
+elif [ "$workers" != "threads" ]; then
+    echo "Warning: workers is set to '$workers'. For optimal performance, consider using 'threads' mode."
+fi
+
+if [ -z "$net_workers" ]; then
+    echo "Warning: net_workers parameter is not set. Consider setting it to a value greater than 0 for improved network handling."
+elif (( net_workers < 2 )); then
+    echo "Warning: net_workers is set to $net_workers. For better network performance, consider increasing it to at least 2."
+fi
+
+if [ -z "$max_matches" ] || (( max_matches < 1000 )); then
+    echo "Warning: max_matches is set to $max_matches. For large datasets, consider increasing it to at least 1000."
+fi
+
+if [ -z "$read_timeout" ] || (( read_timeout < 5 )); then
+    echo "Warning: read_timeout is set to $read_timeout. Consider increasing it to at least 5 seconds for stability."
+fi
+
+if [ -z "$write_timeout" ] || (( write_timeout < 5 )); then
+    echo "Warning: write_timeout is set to $write_timeout. Consider increasing it to at least 5 seconds for stability."
+fi
+
+if [ -z "$max_iops" ] || (( max_iops < 40 )); then
+    echo "Warning: max_iops is set to $max_iops. For SSDs, consider increasing it to at least 40."
+fi
+
+if [ -z "$max_iosize" ] || (( max_iosize < 1 )); then
+    echo "Warning: max_iosize is set to $max_iosize. For optimal I/O performance, consider increasing it to at least 1 MB."
+fi
+
+if [ -z "$query_cache_size" ]; then
+    echo "Warning: query_cache_size is not set. Consider enabling query caching for frequently executed queries."
+fi
+
 if (( local_ram_mb > total_ram_mb * 0.8 )); then
     echo "Warning: Sphinx is using more than 80% of available RAM (${local_ram_mb} MB of ${total_ram_mb} MB). Consider upgrading physical memory."
 fi
@@ -107,8 +140,11 @@ echo "- Use RT indexes for fast data updates if possible."
 echo "- Enable external caching with Redis or Memcached for frequently executed queries."
 echo "- Review and optimize your queries by analyzing the query logs (query.log)."
 echo "- Adjust max_iops and max_iosize settings in sphinx.conf for better I/O performance."
-echo "- Analyze SHOW PROFILE output to identify slow parts of queries."
-echo "- Review SHOW VARIABLES output to ensure optimal configuration."
+echo "- Set workers to 'threads' for better utilization of multi-core CPUs."
+echo "- Set net_workers to a value greater than 0 for improved network handling."
+echo "- Increase max_matches to at least 1000 for large datasets."
+echo "- Set read_timeout and write_timeout to at least 5 seconds for stability."
+echo "- Enable query_cache_size for caching frequently executed queries."
 
 # Conclusion
 echo ""
