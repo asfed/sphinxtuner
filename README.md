@@ -134,6 +134,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 - [SphinxSearch Official Website](https://sphinxsearch.com/)
 - [Sphinx 3.x Documentation](https://sphinxsearch.com/docs/sphinx3.html)
-- [GitHub Repository](https://github.com/your-repo/sphinxtuner)
 
    
