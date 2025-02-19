@@ -49,33 +49,10 @@ query_cache_size=$(get_config_value "query_cache_size")
 indexer_mem_limit=$(get_config_value "mem_limit")
 indexer_threads=$(get_config_value "threads")
 max_file_field_buffer=$(get_config_value "max_file_field_buffer")
-max_xmlpipe2_field=$(get_config_value "max_xmlpipe2_field")
-on_file_field_error=$(get_config_value "on_file_field_error")
 lemmatizer_cache=$(get_config_value "lemmatizer_cache")
-stopwords=$(get_config_value "stopwords")
-wordforms=$(get_config_value "wordforms")
-exceptions=$(get_config_value "exceptions")
-min_word_len=$(get_config_value "min_word_len")
-charset_table=$(get_config_value "charset_table")
-blend_chars=$(get_config_value "blend_chars")
 html_strip=$(get_config_value "html_strip")
 morphology=$(get_config_value "morphology")
 dict=$(get_config_value "dict")
-index_exact_words=$(get_config_value "index_exact_words")
-expand_keywords=$(get_config_value "expand_keywords")
-overshort_step=$(get_config_value "overshort_step")
-stopword_step=$(get_config_value "stopword_step")
-hitless_words=$(get_config_value "hitless_words")
-embedded_limit=$(get_config_value "embedded_limit")
-rt_field=$(get_config_value "rt_field")
-rt_attr_uint=$(get_config_value "rt_attr_uint")
-rt_attr_bigint=$(get_config_value "rt_attr_bigint")
-rt_attr_float=$(get_config_value "rt_attr_float")
-rt_attr_timestamp=$(get_config_value "rt_attr_timestamp")
-rt_attr_string=$(get_config_value "rt_attr_string")
-rt_attr_multi=$(get_config_value "rt_attr_multi")
-rt_attr_multi_64=$(get_config_value "rt_attr_multi_64")
-rt_attr_json=$(get_config_value "rt_attr_json")
 
 # Get system information
 total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
@@ -113,98 +90,96 @@ echo "Configuration Details (indexer):"
 echo "mem_limit: ${indexer_mem_limit:-Not set}"
 echo "threads: ${indexer_threads:-Not set}"
 echo "max_file_field_buffer: ${max_file_field_buffer:-Not set}"
-echo "max_xmlpipe2_field: ${max_xmlpipe2_field:-Not set}"
-echo "on_file_field_error: ${on_file_field_error:-Not set}"
 echo "lemmatizer_cache: ${lemmatizer_cache:-Not set}"
-echo "stopwords: ${stopwords:-Not set}"
-echo "wordforms: ${wordforms:-Not set}"
-echo "exceptions: ${exceptions:-Not set}"
-echo "min_word_len: ${min_word_len:-Not set}"
-echo "charset_table: ${charset_table:-Not set}"
-echo "blend_chars: ${blend_chars:-Not set}"
 echo "html_strip: ${html_strip:-Not set}"
 echo "morphology: ${morphology:-Not set}"
 echo "dict: ${dict:-Not set}"
-echo "index_exact_words: ${index_exact_words:-Not set}"
-echo "expand_keywords: ${expand_keywords:-Not set}"
-echo "overshort_step: ${overshort_step:-Not set}"
-echo "stopword_step: ${stopword_step:-Not set}"
-echo "hitless_words: ${hitless_words:-Not set}"
-echo "embedded_limit: ${embedded_limit:-Not set}"
-echo "rt_field: ${rt_field:-Not set}"
-echo "rt_attr_uint: ${rt_attr_uint:-Not set}"
-echo "rt_attr_bigint: ${rt_attr_bigint:-Not set}"
-echo "rt_attr_float: ${rt_attr_float:-Not set}"
-echo "rt_attr_timestamp: ${rt_attr_timestamp:-Not set}"
-echo "rt_attr_string: ${rt_attr_string:-Not set}"
-echo "rt_attr_multi: ${rt_attr_multi:-Not set}"
-echo "rt_attr_multi_64: ${rt_attr_multi_64:-Not set}"
-echo "rt_attr_json: ${rt_attr_json:-Not set}"
 
 # Analysis and recommendations
 echo ""
 echo "Performance Analysis:"
+
+recommendations=()
+
+# Searchd recommendations
 if (( $(echo "$avg_query_wall > 0.01" | bc -l) )); then
-    echo "Warning: Average query time is high ($avg_query_wall sec). Consider increasing mem_limit or optimizing queries."
+    recommendations+=("- Average query time is high ($avg_query_wall sec). Consider increasing mem_limit or optimizing queries.")
 fi
 
 if [ -z "$mem_limit" ] || (( $(echo "$mem_limit < $local_disk_mb" | bc -l) )); then
-    echo "Warning: mem_limit in configuration is too low ($mem_limit MB). It is recommended to set it to at least ${local_disk_mb} MB."
+    recommendations+=("- mem_limit is too low ($mem_limit MB). It is recommended to set it to at least ${local_disk_mb} MB.")
+fi
+
+if [ -z "$workers" ] || [ "$workers" != "threads" ]; then
+    recommendations+=("- workers is not set to 'threads'. For optimal performance, consider using 'threads' mode.")
+fi
+
+if [ -z "$net_workers" ] || (( net_workers < 2 )); then
+    recommendations+=("- net_workers is too low ($net_workers). For better network performance, consider increasing it to at least 2.")
+fi
+
+if [ -z "$max_matches" ] || (( max_matches < 1000 )); then
+    recommendations+=("- max_matches is too low ($max_matches). For large datasets, consider increasing it to at least 1000.")
+fi
+
+if [ -z "$read_timeout" ] || (( read_timeout < 5 )); then
+    recommendations+=("- read_timeout is too low ($read_timeout). Consider increasing it to at least 5 seconds for stability.")
+fi
+
+if [ -z "$write_timeout" ] || (( write_timeout < 5 )); then
+    recommendations+=("- write_timeout is too low ($write_timeout). Consider increasing it to at least 5 seconds for stability.")
+fi
+
+if [ -z "$max_iops" ] || (( max_iops < 40 )); then
+    recommendations+=("- max_iops is too low ($max_iops). For SSDs, consider increasing it to at least 40.")
+fi
+
+if [ -z "$max_iosize" ] || (( max_iosize < 1 )); then
+    recommendations+=("- max_iosize is too low ($max_iosize). For optimal I/O performance, consider increasing it to at least 1 MB.")
+fi
+
+if [ -z "$query_cache_size" ]; then
+    recommendations+=("- query_cache_size is not enabled. Consider enabling query caching for frequently executed queries.")
+fi
+
+# Indexer recommendations
+if [ -z "$indexer_mem_limit" ] || (( $(echo "$indexer_mem_limit < $local_disk_mb" | bc -l) )); then
+    recommendations+=("- indexer mem_limit is too low ($indexer_mem_limit MB). It is recommended to set it to at least ${local_disk_mb} MB.")
 fi
 
 if [ -z "$indexer_threads" ] || (( indexer_threads < 4 )); then
-    echo "Warning: Number of indexer threads (threads) is too low ($indexer_threads). It is recommended to increase it to the number of CPU cores."
-fi
-
-if [ -z "$indexer_mem_limit" ] || (( $(echo "$indexer_mem_limit < $local_disk_mb" | bc -l) )); then
-    echo "Warning: indexer mem_limit is too low ($indexer_mem_limit MB). It is recommended to set it to at least ${local_disk_mb} MB."
+    recommendations+=("- Number of indexer threads (threads) is too low ($indexer_threads). It is recommended to increase it to the number of CPU cores.")
 fi
 
 if [ -z "$max_file_field_buffer" ] || (( max_file_field_buffer < 8 )); then
-    echo "Warning: max_file_field_buffer is set to $max_file_field_buffer MB. Consider increasing it to at least 8 MB for large file fields."
+    recommendations+=("- max_file_field_buffer is too low ($max_file_field_buffer MB). Consider increasing it to at least 8 MB for large file fields.")
 fi
 
 if [ -z "$lemmatizer_cache" ] || (( lemmatizer_cache < 256 )); then
-    echo "Warning: lemmatizer_cache is set to $lemmatizer_cache MB. Consider increasing it to at least 256 MB for better performance with morphology."
-fi
-
-if [ -z "$min_word_len" ] || (( min_word_len < 1 )); then
-    echo "Warning: min_word_len is set to $min_word_len. Consider setting it to at least 1 for better indexing accuracy."
+    recommendations+=("- lemmatizer_cache is too low ($lemmatizer_cache MB). Consider increasing it to at least 256 MB for better performance with morphology.")
 fi
 
 if [ -z "$html_strip" ] || [ "$html_strip" != "1" ]; then
-    echo "Warning: html_strip is not enabled. Consider enabling it if your data contains HTML content."
+    recommendations+=("- html_strip is not enabled. Consider enabling it if your data contains HTML content.")
 fi
 
 if [ -z "$morphology" ]; then
-    echo "Warning: morphology is not set. Consider enabling it for better text processing (e.g., stem_en, stem_ru)."
+    recommendations+=("- morphology is not set. Consider enabling it for better text processing (e.g., stem_en, stem_ru).")
 fi
 
 if [ -z "$dict" ] || [ "$dict" != "keywords" ]; then
-    echo "Warning: dict is not set to 'keywords'. Consider using 'keywords' for faster indexing."
+    recommendations+=("- dict is not set to 'keywords'. Consider using 'keywords' for faster indexing.")
 fi
 
-if (( local_ram_mb > total_ram_mb * 0.8 )); then
-    echo "Warning: Sphinx is using more than 80% of available RAM (${local_ram_mb} MB of ${total_ram_mb} MB). Consider upgrading physical memory."
+# Output recommendations
+if [ ${#recommendations[@]} -eq 0 ]; then
+    echo "No optimization recommendations. Your Sphinx configuration appears to be well-optimized!"
+else
+    echo "Optimization Recommendations:"
+    for rec in "${recommendations[@]}"; do
+        echo "$rec"
+    done
 fi
-
-# Optimization recommendations
-echo ""
-echo "Optimization Recommendations:"
-echo "- Increase mem_limit to a value greater than the disk index size (${local_disk_mb} MB)."
-echo "- Use RT indexes for fast data updates if possible."
-echo "- Enable external caching with Redis or Memcached for frequently executed queries."
-echo "- Review and optimize your queries by analyzing the query logs (query.log)."
-echo "- Adjust max_iops and max_iosize settings in sphinx.conf for better I/O performance."
-echo "- Set workers to 'threads' for better utilization of multi-core CPUs."
-echo "- Set net_workers to a value greater than 1 for improved network handling under high query rates."
-echo "- Increase max_matches to at least 1000 for large datasets."
-echo "- Set read_timeout and write_timeout to at least 5 seconds for stability."
-echo "- Enable query_cache_size for caching frequently executed queries."
-echo "- Optimize indexer mem_limit and threads for faster indexing."
-echo "- Increase max_file_field_buffer for large file fields."
-echo "- Enable html_strip if your data contains HTML content."
-echo "- Configure morphology and dict for better text processing."
 
 # Conclusion
 echo ""
